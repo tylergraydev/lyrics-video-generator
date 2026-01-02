@@ -59,7 +59,7 @@ import torch
 import whisperx
 from moviepy import (
     ImageClip, TextClip, CompositeVideoClip,
-    AudioFileClip, concatenate_videoclips
+    AudioFileClip, concatenate_videoclips, vfx
 )
 from PIL import Image
 
@@ -651,33 +651,64 @@ class LyricsAligner:
 
         Each line is processed INDEPENDENTLY - no forcing sequential order.
         This way a bad match on line 2 won't cascade to lines 3, 4, 5, etc.
+
+        Key fix: Detect words with outlier timing and re-estimate based on
+        the first word's start (which is usually accurate) + reasonable duration.
         """
+        # Reasonable speaking rate: ~3-4 words per second for sung lyrics
+        AVG_WORD_DURATION = 0.35  # seconds per word
+        GAP_BETWEEN_WORDS = 0.08  # small gap between words
+        MAX_LINE_DURATION = 8.0   # max seconds for any single line
+
         for line in timed_lines:
-            # Process words within line - only enforce order WITHIN a line
-            word_prev_end = None
-            for word in line.words:
-                # Clamp to duration
-                word.start = max(0, min(word.start, duration - 0.1))
-                word.end = max(0, min(word.end, duration))
+            if not line.words:
+                continue
 
-                # Within a line, words should be sequential
-                if word_prev_end is not None and word.start < word_prev_end:
-                    word.start = word_prev_end + 0.02
+            # First word's start is usually accurate - use it as anchor
+            first_word_start = line.words[0].start
+            num_words = len(line.words)
 
-                # Cap word duration (max 1.5 seconds per word)
-                if word.end - word.start > 1.5:
-                    word.end = word.start + 0.4
+            # Expected line duration based on word count
+            expected_line_duration = num_words * (AVG_WORD_DURATION + GAP_BETWEEN_WORDS)
+            max_reasonable_end = first_word_start + min(expected_line_duration * 2, MAX_LINE_DURATION)
 
-                # Ensure end > start
-                if word.end <= word.start:
-                    word.end = word.start + 0.2
+            # Check if the line has outlier words (end time way beyond expected)
+            last_word_end = line.words[-1].end
+            line_seems_broken = (last_word_end - first_word_start) > max_reasonable_end - first_word_start
 
-                word_prev_end = word.end
+            if line_seems_broken:
+                # Re-estimate all word timings based on first word + even spacing
+                current_time = first_word_start
+                for word in line.words:
+                    word.start = current_time
+                    word.end = current_time + AVG_WORD_DURATION
+                    word.confidence = min(word.confidence, 0.4)  # Mark as re-estimated
+                    current_time = word.end + GAP_BETWEEN_WORDS
+            else:
+                # Line seems OK - just do basic cleanup
+                word_prev_end = None
+                for word in line.words:
+                    # Clamp to duration
+                    word.start = max(0, min(word.start, duration - 0.1))
+                    word.end = max(0, min(word.end, duration))
+
+                    # Within a line, words should be sequential
+                    if word_prev_end is not None and word.start < word_prev_end:
+                        word.start = word_prev_end + 0.02
+
+                    # Cap word duration (max 1.5 seconds per word)
+                    if word.end - word.start > 1.5:
+                        word.end = word.start + 0.4
+
+                    # Ensure end > start
+                    if word.end <= word.start:
+                        word.end = word.start + 0.2
+
+                    word_prev_end = word.end
 
             # Recalculate line timing from words
-            if line.words:
-                line.start = line.words[0].start
-                line.end = line.words[-1].end
+            line.start = line.words[0].start
+            line.end = line.words[-1].end
 
         return timed_lines
 
@@ -687,7 +718,7 @@ class LyricsVideoGenerator:
     
     def __init__(
         self,
-        font: str = "DejaVu-Sans-Bold",
+        font: str = "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
         font_size: int = 60,
         text_color: str = "white",
         highlight_color: str = "yellow",
@@ -749,8 +780,8 @@ class LyricsVideoGenerator:
         
         # Load and resize background image
         bg_clip = ImageClip(image_path)
-        bg_clip = bg_clip.resize(resolution)
-        bg_clip = bg_clip.set_duration(timing_data.duration)
+        bg_clip = bg_clip.resized(resolution)
+        bg_clip = bg_clip.with_duration(timing_data.duration)
         
         # Create text clips for each line
         text_clips = []
@@ -763,20 +794,22 @@ class LyricsVideoGenerator:
             if highlight_mode == "line":
                 # Simple mode: show full line
                 txt_clip = TextClip(
-                    line.text,
-                    fontsize=self.font_size,
+                    text=line.text,
                     font=self.font,
+                    font_size=self.font_size,
                     color=self.text_color,
                     stroke_color=self.stroke_color,
                     stroke_width=self.stroke_width,
                     method='caption',
                     size=(resolution[0] - 100, None)
                 )
-                txt_clip = txt_clip.set_position(self.position)
-                txt_clip = txt_clip.set_start(display_start)
-                txt_clip = txt_clip.set_duration(display_end - display_start)
-                txt_clip = txt_clip.crossfadein(self.fade_duration)
-                txt_clip = txt_clip.crossfadeout(self.fade_duration)
+                txt_clip = txt_clip.with_position(self.position)
+                txt_clip = txt_clip.with_start(display_start)
+                txt_clip = txt_clip.with_duration(display_end - display_start)
+                txt_clip = txt_clip.with_effects([
+                    vfx.CrossFadeIn(self.fade_duration),
+                    vfx.CrossFadeOut(self.fade_duration)
+                ])
                 text_clips.append(txt_clip)
                 
             elif highlight_mode == "karaoke":
@@ -784,17 +817,17 @@ class LyricsVideoGenerator:
                 for word in line.words:
                     # Create highlighted word
                     txt_clip = TextClip(
-                        word.word,
-                        fontsize=self.font_size,
+                        text=word.word,
                         font=self.font,
+                        font_size=self.font_size,
                         color=self.highlight_color,
                         stroke_color=self.stroke_color,
                         stroke_width=self.stroke_width
                     )
                     # Position would need word-level positioning logic
-                    txt_clip = txt_clip.set_position(self.position)
-                    txt_clip = txt_clip.set_start(word.start)
-                    txt_clip = txt_clip.set_duration(word.end - word.start)
+                    txt_clip = txt_clip.with_position(self.position)
+                    txt_clip = txt_clip.with_start(word.start)
+                    txt_clip = txt_clip.with_duration(word.end - word.start)
                     text_clips.append(txt_clip)
         
         # Composite all clips
@@ -805,7 +838,7 @@ class LyricsVideoGenerator:
         
         # Add audio
         audio = AudioFileClip(audio_path)
-        final_clip = final_clip.set_audio(audio)
+        final_clip = final_clip.with_audio(audio)
         
         # Write output
         print("Rendering video...")
@@ -816,7 +849,6 @@ class LyricsVideoGenerator:
             audio_codec='aac',
             threads=4,
             preset='medium',
-            verbose=False,
             logger=None
         )
         
