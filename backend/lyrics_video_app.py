@@ -725,11 +725,12 @@ class LyricsVideoGenerator:
         stroke_color: str = "black",
         stroke_width: int = 3,
         position: tuple = ('center', 'center'),
-        fade_duration: float = 0.3
+        fade_duration: float = 0.3,
+        text_width: int = None
     ):
         """
         Initialize the video generator with styling options.
-        
+
         Args:
             font: Font name for lyrics text
             font_size: Size of lyrics text
@@ -739,6 +740,7 @@ class LyricsVideoGenerator:
             stroke_width: Outline width
             position: Position of text ('center', 'center') or pixel coordinates
             fade_duration: Duration of fade in/out for lines
+            text_width: Width for text wrapping (None = auto based on resolution)
         """
         self.font = font
         self.font_size = font_size
@@ -748,6 +750,7 @@ class LyricsVideoGenerator:
         self.stroke_width = stroke_width
         self.position = position
         self.fade_duration = fade_duration
+        self.text_width = text_width
     
     def generate_video(
         self,
@@ -793,6 +796,8 @@ class LyricsVideoGenerator:
             
             if highlight_mode == "line":
                 # Simple mode: show full line
+                # Use text_width if specified, otherwise default to resolution - 100
+                clip_width = self.text_width if self.text_width else (resolution[0] - 100)
                 txt_clip = TextClip(
                     text=line.text,
                     font=self.font,
@@ -801,9 +806,24 @@ class LyricsVideoGenerator:
                     stroke_color=self.stroke_color,
                     stroke_width=self.stroke_width,
                     method='caption',
-                    size=(resolution[0] - 100, None)
+                    size=(clip_width, None)
                 )
-                txt_clip = txt_clip.with_position(self.position)
+
+                # Handle positioning - if tuple of numbers, center the clip at that position
+                if isinstance(self.position, tuple) and len(self.position) == 2:
+                    pos_x, pos_y = self.position
+                    # Check if both are numbers (not strings like 'center')
+                    if not isinstance(pos_x, str) and not isinstance(pos_y, str):
+                        # Custom pixel position - center the clip at this point
+                        clip_w, clip_h = txt_clip.size
+                        centered_x = int(pos_x) - clip_w / 2
+                        centered_y = int(pos_y) - clip_h / 2
+                        txt_clip = txt_clip.with_position((centered_x, centered_y))
+                    else:
+                        # String position like ('center', 'center')
+                        txt_clip = txt_clip.with_position(self.position)
+                else:
+                    txt_clip = txt_clip.with_position(self.position)
                 txt_clip = txt_clip.with_start(display_start)
                 txt_clip = txt_clip.with_duration(display_end - display_start)
                 txt_clip = txt_clip.with_effects([

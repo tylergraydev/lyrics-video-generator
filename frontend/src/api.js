@@ -93,10 +93,22 @@ export async function updateTiming(jobId, timingData) {
  * @returns {Promise<{success: boolean, download_url: string}>}
  */
 export async function generateVideo(jobId, settings = {}) {
+  // Transform frontend settings format to backend format
+  const backendSettings = {
+    font_size: settings.fontSize || 60,
+    font: settings.font || 'Arial',
+    text_color: settings.textColor || 'white',
+    stroke_color: settings.strokeColor || 'black',
+    stroke_width: settings.strokeWidth || 3,
+    resolution: settings.resolution || '1920x1080',
+    text_box: settings.textBox || null, // { x, y, width, height } normalized 0-1
+    fps: settings.fps || 24,
+  };
+
   const response = await fetch(`${API_BASE}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id: jobId, settings }),
+    body: JSON.stringify({ job_id: jobId, settings: backendSettings }),
   });
 
   if (!response.ok) {
@@ -137,6 +149,32 @@ export async function deleteJob(jobId) {
 
   if (!response.ok) {
     throw new Error(`Failed to delete job: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Import timing JSON with audio and image files (skips alignment)
+ * @param {File} audioFile - Audio file (mp3, wav, etc.)
+ * @param {File} imageFile - Background image (jpg, png)
+ * @param {File} timingFile - Timing JSON file
+ * @returns {Promise<{job_id: string, files: object, timing: object}>}
+ */
+export async function importTimingFiles(audioFile, imageFile, timingFile) {
+  const formData = new FormData();
+  formData.append('audio', audioFile);
+  formData.append('image', imageFile);
+  formData.append('timing', timingFile);
+
+  const response = await fetch(`${API_BASE}/import-timing`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Import failed: ${response.statusText}`);
   }
 
   return response.json();

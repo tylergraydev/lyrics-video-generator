@@ -3,6 +3,7 @@ import TimelineEditor from './components/TimelineEditor';
 import FileUpload from './components/FileUpload';
 import StylePanel from './components/StylePanel';
 import VideoPreview from './components/VideoPreview';
+import PreviewEditor from './components/PreviewEditor';
 import {
   uploadFiles,
   alignLyrics,
@@ -11,6 +12,7 @@ import {
   getDownloadUrl,
   getAudioUrl,
   deleteJob,
+  importTimingFiles,
 } from './api';
 
 const STEPS = {
@@ -21,16 +23,26 @@ const STEPS = {
   DOWNLOAD: 'download',
 };
 
+const EDIT_TABS = {
+  TIMELINE: 'timeline',
+  PREVIEW: 'preview',
+};
+
 function App() {
   const [currentStep, setCurrentStep] = useState(STEPS.UPLOAD);
+  const [editTab, setEditTab] = useState(EDIT_TABS.PREVIEW);
   const [jobId, setJobId] = useState(null);
   const [timingData, setTimingData] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
   const [settings, setSettings] = useState({
     fontSize: 60,
     textColor: '#ffffff',
     strokeColor: '#000000',
-    position: 'center',
+    strokeWidth: 3,
     resolution: '1920x1080',
+    orientation: 'horizontal',
+    font: 'Arial',
+    textBox: null, // { x, y, width, height } normalized 0-1
   });
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -40,6 +52,13 @@ function App() {
     setError(null);
     setCurrentStep(STEPS.PROCESSING);
     setProcessingStatus('Uploading files...');
+
+    // Store image URL for preview
+    if (imageFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => setImageUrl(e.target.result);
+      reader.readAsDataURL(imageFile);
+    }
 
     try {
       // Upload files
@@ -53,6 +72,29 @@ function App() {
       setCurrentStep(STEPS.EDIT);
     } catch (err) {
       setError(err.message || 'Failed to process files');
+      setCurrentStep(STEPS.UPLOAD);
+    }
+  };
+
+  const handleImportComplete = async ({ audioFile, imageFile, timingFile }) => {
+    setError(null);
+    setCurrentStep(STEPS.PROCESSING);
+    setProcessingStatus('Importing files...');
+
+    // Store image URL for preview
+    if (imageFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => setImageUrl(e.target.result);
+      reader.readAsDataURL(imageFile);
+    }
+
+    try {
+      const result = await importTimingFiles(audioFile, imageFile, timingFile);
+      setJobId(result.job_id);
+      setTimingData(result.timing);
+      setCurrentStep(STEPS.EDIT);
+    } catch (err) {
+      setError(err.message || 'Failed to import files');
       setCurrentStep(STEPS.UPLOAD);
     }
   };
@@ -91,8 +133,10 @@ function App() {
       }
     }
     setCurrentStep(STEPS.UPLOAD);
+    setEditTab(EDIT_TABS.PREVIEW);
     setJobId(null);
     setTimingData(null);
+    setImageUrl(null);
     setVideoUrl(null);
     setError(null);
   };
@@ -158,7 +202,10 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
         {currentStep === STEPS.UPLOAD && (
-          <FileUpload onUploadComplete={handleUploadComplete} />
+          <FileUpload
+            onUploadComplete={handleUploadComplete}
+            onImportComplete={handleImportComplete}
+          />
         )}
 
         {currentStep === STEPS.PROCESSING && (
@@ -181,14 +228,57 @@ function App() {
 
         {currentStep === STEPS.EDIT && (
           <div className="flex-1 flex flex-col">
-            <StylePanel settings={settings} onChange={setSettings} />
-            <div className="flex-1">
-              <TimelineEditor
-                initialData={timingData}
-                onTimingChange={handleTimingUpdate}
-                onGenerate={handleGenerate}
-                audioUrl={jobId ? getAudioUrl(jobId) : null}
-              />
+            {/* Tab Switcher */}
+            <div className="bg-gray-800 border-b border-gray-700 px-4">
+              <div className="flex">
+                <button
+                  onClick={() => setEditTab(EDIT_TABS.PREVIEW)}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    editTab === EDIT_TABS.PREVIEW
+                      ? 'border-blue-500 text-blue-400'
+                      : 'border-transparent text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Preview & Style
+                </button>
+                <button
+                  onClick={() => setEditTab(EDIT_TABS.TIMELINE)}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    editTab === EDIT_TABS.TIMELINE
+                      ? 'border-blue-500 text-blue-400'
+                      : 'border-transparent text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Timeline Editor
+                </button>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 flex flex-col">
+              {editTab === EDIT_TABS.PREVIEW ? (
+                <PreviewEditor
+                  imageUrl={imageUrl}
+                  audioUrl={jobId ? getAudioUrl(jobId) : null}
+                  timingData={timingData}
+                  settings={settings}
+                  onSettingsChange={setSettings}
+                  onGenerate={handleGenerate}
+                  isGenerating={currentStep === STEPS.GENERATE}
+                />
+              ) : (
+                <>
+                  <StylePanel settings={settings} onChange={setSettings} />
+                  <div className="flex-1">
+                    <TimelineEditor
+                      initialData={timingData}
+                      onTimingChange={handleTimingUpdate}
+                      onGenerate={handleGenerate}
+                      audioUrl={jobId ? getAudioUrl(jobId) : null}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

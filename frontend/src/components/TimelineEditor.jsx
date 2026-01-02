@@ -253,6 +253,33 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
     });
   };
 
+  // Chop selected line's end to playhead position
+  const chopLineAtPlayhead = () => {
+    if (selectedLine === null) return;
+    const newEndTime = snapTime(currentTime);
+
+    setTimingData(prev => {
+      const newData = JSON.parse(JSON.stringify(prev));
+      const line = newData.lines[selectedLine];
+
+      // Don't chop before line starts
+      if (newEndTime <= line.start) return prev;
+
+      // Set line end to playhead
+      line.end = newEndTime;
+
+      // Truncate or remove words that extend past the new end
+      line.words = line.words.filter(w => w.start < newEndTime);
+      line.words.forEach(w => {
+        if (w.end > newEndTime) {
+          w.end = newEndTime;
+        }
+      });
+
+      return newData;
+    });
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -278,12 +305,16 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
       } else if (e.key === 'Escape') {
         setSelectedLine(null);
         setSelectedWord(null);
+      } else if (e.key === 'c' || e.key === 'C') {
+        // Chop line end to playhead
+        e.preventDefault();
+        chopLineAtPlayhead();
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLine, selectedWord, duration]);
+  }, [selectedLine, selectedWord, duration, currentTime, snapEnabled]);
 
   const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toFixed(2).padStart(5,'0')}`;
   
@@ -407,7 +438,22 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
             min="5"
             max="120"
             value={zoom}
-            onChange={e => setZoom(+e.target.value)}
+            onChange={e => {
+              const newZoom = +e.target.value;
+              const container = timelineRef.current;
+              if (container) {
+                // Maintain scroll position relative to current time
+                const timeAtCenter = currentTime;
+                const newScrollLeft = timeAtCenter * newZoom - container.clientWidth / 2;
+                setZoom(newZoom);
+                // Schedule scroll after render
+                setTimeout(() => {
+                  container.scrollLeft = Math.max(0, newScrollLeft);
+                }, 0);
+              } else {
+                setZoom(newZoom);
+              }
+            }}
             className="w-32"
           />
           <span className="text-xs text-gray-500 w-10">{zoom}px/s</span>
@@ -607,8 +653,9 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
         <span><kbd className="bg-gray-700 px-1 rounded">Space</kbd> Play/Pause</span>
         <span><kbd className="bg-gray-700 px-1 rounded">←</kbd><kbd className="bg-gray-700 px-1 rounded">→</kbd> Seek</span>
         <span><kbd className="bg-gray-700 px-1 rounded">Shift</kbd>+Arrows: Nudge</span>
+        <span><kbd className="bg-gray-700 px-1 rounded">C</kbd> Chop line end at playhead</span>
         <span><kbd className="bg-gray-700 px-1 rounded">Esc</kbd> Deselect</span>
-        <span className="text-yellow-600">⚠ Yellow border = low confidence</span>
+        <span className="text-yellow-600">Yellow border = low confidence</span>
       </div>
     </div>
   );

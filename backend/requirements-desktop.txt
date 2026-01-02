@@ -1,0 +1,11 @@
+# Desktop application dependencies
+# Install these in addition to requirements.txt
+
+# Desktop window framework
+pywebview>=5.0.0
+
+# Packaging
+pyinstaller>=6.0.0
+
+# Note: On macOS, pywebview uses the system WebKit
+# On Windows, it will download and use EdgeChromium or fall back to MSHTML
