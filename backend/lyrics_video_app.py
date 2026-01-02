@@ -796,18 +796,45 @@ class LyricsVideoGenerator:
             
             if highlight_mode == "line":
                 # Simple mode: show full line
-                # Use text_width if specified, otherwise default to resolution - 100
-                clip_width = self.text_width if self.text_width else (resolution[0] - 100)
-                txt_clip = TextClip(
-                    text=line.text,
-                    font=self.font,
-                    font_size=self.font_size,
-                    color=self.text_color,
-                    stroke_color=self.stroke_color,
-                    stroke_width=self.stroke_width,
-                    method='caption',
-                    size=(clip_width, None)
-                )
+                # Use text_width if specified, otherwise default to resolution with safe margins
+                # Safe margin = 5% on each side = 10% total, so use 90% of width
+                safe_margin_x = int(resolution[0] * 0.05)
+                safe_margin_y = int(resolution[1] * 0.05)
+                max_safe_width = resolution[0] - (2 * safe_margin_x)
+                max_safe_height = resolution[1] - (2 * safe_margin_y)
+
+                clip_width = self.text_width if self.text_width else max_safe_width
+                # Ensure clip_width doesn't exceed safe bounds
+                clip_width = min(clip_width, max_safe_width)
+
+                # Start with configured font size, reduce if text is too tall
+                current_font_size = self.font_size
+                min_font_size = max(20, self.font_size // 3)  # Don't go below 1/3 of original or 20px
+
+                while current_font_size >= min_font_size:
+                    txt_clip = TextClip(
+                        text=line.text,
+                        font=self.font,
+                        font_size=current_font_size,
+                        color=self.text_color,
+                        stroke_color=self.stroke_color,
+                        stroke_width=self.stroke_width,
+                        method='caption',
+                        size=(clip_width, None)
+                    )
+
+                    clip_w, clip_h = txt_clip.size
+
+                    # Check if text fits within safe vertical bounds
+                    if clip_h <= max_safe_height:
+                        break
+
+                    # Text too tall, try smaller font
+                    txt_clip.close()
+                    current_font_size = int(current_font_size * 0.85)
+
+                # Final size check
+                clip_w, clip_h = txt_clip.size
 
                 # Handle positioning - if tuple of numbers, center the clip at that position
                 if isinstance(self.position, tuple) and len(self.position) == 2:
@@ -815,9 +842,13 @@ class LyricsVideoGenerator:
                     # Check if both are numbers (not strings like 'center')
                     if not isinstance(pos_x, str) and not isinstance(pos_y, str):
                         # Custom pixel position - center the clip at this point
-                        clip_w, clip_h = txt_clip.size
                         centered_x = int(pos_x) - clip_w / 2
                         centered_y = int(pos_y) - clip_h / 2
+
+                        # Clamp position to keep text within safe bounds
+                        centered_x = max(safe_margin_x, min(centered_x, resolution[0] - clip_w - safe_margin_x))
+                        centered_y = max(safe_margin_y, min(centered_y, resolution[1] - clip_h - safe_margin_y))
+
                         txt_clip = txt_clip.with_position((centered_x, centered_y))
                     else:
                         # String position like ('center', 'center')

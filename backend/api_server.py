@@ -64,22 +64,37 @@ def upload_files():
     """
     Upload audio, image, and lyrics files.
     Returns a job ID for tracking the processing.
+
+    Supports two audio files:
+    - 'audio' or 'video_audio': Audio for the final video (full mix)
+    - 'alignment_audio': Vocals-only audio for better alignment accuracy (optional)
+
+    If only 'audio' is provided, it's used for both alignment and video.
     """
     job_id = generate_job_id()
     job_folder = UPLOAD_FOLDER / job_id
     job_folder.mkdir(exist_ok=True)
-    
+
     result = {'job_id': job_id, 'files': {}}
-    
-    # Handle audio file
-    if 'audio' in request.files:
-        audio = request.files['audio']
-        if audio.filename and allowed_file(audio.filename, ALLOWED_AUDIO):
-            filename = secure_filename(audio.filename)
-            audio_path = job_folder / f"audio_{filename}"
-            audio.save(audio_path)
-            result['files']['audio'] = str(audio_path)
-    
+
+    # Handle main audio file (used for video, and alignment if no separate alignment audio)
+    # Accept either 'audio' or 'video_audio' for the main audio
+    audio_file = request.files.get('audio') or request.files.get('video_audio')
+    if audio_file and audio_file.filename and allowed_file(audio_file.filename, ALLOWED_AUDIO):
+        filename = secure_filename(audio_file.filename)
+        audio_path = job_folder / f"audio_{filename}"
+        audio_file.save(audio_path)
+        result['files']['audio'] = str(audio_path)
+
+    # Handle alignment audio (vocals-only for better transcription accuracy)
+    if 'alignment_audio' in request.files:
+        align_audio = request.files['alignment_audio']
+        if align_audio.filename and allowed_file(align_audio.filename, ALLOWED_AUDIO):
+            filename = secure_filename(align_audio.filename)
+            align_audio_path = job_folder / f"alignment_audio_{filename}"
+            align_audio.save(align_audio_path)
+            result['files']['alignment_audio'] = str(align_audio_path)
+
     # Handle image file
     if 'image' in request.files:
         image = request.files['image']
@@ -88,14 +103,14 @@ def upload_files():
             image_path = job_folder / f"image_{filename}"
             image.save(image_path)
             result['files']['image'] = str(image_path)
-    
+
     # Handle lyrics (as text in form data)
     if 'lyrics' in request.form:
         lyrics_text = request.form['lyrics']
         lyrics_path = job_folder / 'lyrics.txt'
         lyrics_path.write_text(lyrics_text)
         result['files']['lyrics'] = str(lyrics_path)
-    
+
     return jsonify(result)
 
 
@@ -103,34 +118,45 @@ def upload_files():
 def align_lyrics():
     """
     Align lyrics with audio using Whisper.
-    
+
     Request body:
         {
             "job_id": "abc123",
             "model_size": "small"  // optional, defaults to 'small' for good accuracy
         }
 
+    Uses alignment_audio if available (vocals-only for better accuracy),
+    otherwise falls back to the main audio file.
+
     Returns timing data JSON.
     """
     data = request.get_json()
     job_id = data.get('job_id')
     model_size = data.get('model_size', 'large-v2')
-    
+
     if not job_id:
         return jsonify({'error': 'Missing job_id'}), 400
-    
+
     job_folder = UPLOAD_FOLDER / job_id
-    
-    # Find uploaded files
+
+    # Find uploaded files - prefer alignment_audio for transcription
+    alignment_audio_files = list(job_folder.glob('alignment_audio_*'))
     audio_files = list(job_folder.glob('audio_*'))
     lyrics_file = job_folder / 'lyrics.txt'
-    
-    if not audio_files:
+
+    # Use alignment audio if available, otherwise use main audio
+    if alignment_audio_files:
+        audio_path = str(alignment_audio_files[0])
+        print(f"Using alignment audio for transcription: {audio_path}")
+    elif audio_files:
+        audio_path = str(audio_files[0])
+        print(f"Using main audio for transcription: {audio_path}")
+    else:
         return jsonify({'error': 'No audio file found'}), 400
+
     if not lyrics_file.exists():
         return jsonify({'error': 'No lyrics file found'}), 400
-    
-    audio_path = str(audio_files[0])
+
     lyrics_text = lyrics_file.read_text()
     
     try:
@@ -182,7 +208,7 @@ def import_timing():
     """
     Import a timing JSON file directly, skipping the alignment step.
     Expects FormData with:
-        - audio: audio file
+        - audio (or video_audio): audio file for the final video
         - image: image file
         - timing: timing JSON file
     """
@@ -192,14 +218,13 @@ def import_timing():
 
     result = {'job_id': job_id, 'files': {}}
 
-    # Handle audio file
-    if 'audio' in request.files:
-        audio = request.files['audio']
-        if audio.filename and allowed_file(audio.filename, ALLOWED_AUDIO):
-            filename = secure_filename(audio.filename)
-            audio_path = job_folder / f"audio_{filename}"
-            audio.save(audio_path)
-            result['files']['audio'] = str(audio_path)
+    # Handle audio file (accept either 'audio' or 'video_audio')
+    audio_file = request.files.get('audio') or request.files.get('video_audio')
+    if audio_file and audio_file.filename and allowed_file(audio_file.filename, ALLOWED_AUDIO):
+        filename = secure_filename(audio_file.filename)
+        audio_path = job_folder / f"audio_{filename}"
+        audio_file.save(audio_path)
+        result['files']['audio'] = str(audio_path)
     else:
         return jsonify({'error': 'Audio file required'}), 400
 
