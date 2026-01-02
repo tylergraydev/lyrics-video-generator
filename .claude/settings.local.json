@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:alexop.dev)",
+      "Bash(sudo echo:*)",
+      "Bash(killall:*)",
+      "Bash(networksetup:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(pip3 install:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9:*)",
+      "Bash(pip3 uninstall:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 python3:*)",
+      "Bash(brew install:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(find:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

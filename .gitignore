@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Generated files
+uploads/
+output/
+*.mp4
+*_timing.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Whisper models (large)
+*.pt
+*.bin

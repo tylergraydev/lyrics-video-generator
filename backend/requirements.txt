@@ -1,0 +1,18 @@
+# Core dependencies
+whisperx>=3.1.0
+moviepy>=1.0.3
+Pillow>=10.0.0
+
+# WhisperX dependencies (usually installed automatically)
+# torch>=2.0.0
+# torchaudio>=2.0.0
+# faster-whisper>=0.10.0
+
+# Web API dependencies (optional, for web interface)
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.0
+
+# For GPU acceleration (recommended for WhisperX)
+# Install PyTorch with CUDA support:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
