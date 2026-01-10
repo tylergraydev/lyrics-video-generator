@@ -55,7 +55,7 @@ const SAMPLE_TIMING = {
 
 const COLORS = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500', 'bg-indigo-500', 'bg-red-400'];
 
-export default function TimelineEditor({ initialData, onTimingChange, onGenerate, audioUrl }) {
+export default function TimelineEditor({ initialData, onTimingChange, onGenerate, audioUrl, waveformPeaks }) {
   const [timingData, setTimingData] = useState(initialData || SAMPLE_TIMING);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,6 +70,7 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
   const playIntervalRef = useRef(null);
   const fileInputRef = useRef(null);
   const audioRef = useRef(null);
+  const waveformCanvasRef = useRef(null);
 
   const duration = timingData.duration;
   const timelineWidth = duration * zoom;
@@ -128,6 +129,38 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
       }
     }
   }, [currentTime, zoom, isPlaying]);
+
+  // Draw waveform when peaks or zoom changes
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+    if (!canvas || !waveformPeaks || waveformPeaks.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    const canvasWidth = timelineWidth + 100;
+    const canvasHeight = 50;
+
+    // Set canvas size
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw waveform
+    const peakWidth = timelineWidth / waveformPeaks.length;
+    const centerY = canvasHeight / 2;
+
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.5)'; // blue-500 with 50% opacity
+
+    for (let i = 0; i < waveformPeaks.length; i++) {
+      const peak = waveformPeaks[i];
+      const x = i * peakWidth;
+      const barHeight = peak * (canvasHeight - 4);
+
+      // Draw mirrored bars (center-aligned)
+      ctx.fillRect(x, centerY - barHeight / 2, Math.max(1, peakWidth - 0.5), barHeight);
+    }
+  }, [waveformPeaks, timelineWidth, zoom]);
 
   const timeToX = (time) => time * zoom;
   const xToTime = (x) => x / zoom;
@@ -506,6 +539,17 @@ export default function TimelineEditor({ initialData, onTimingChange, onGenerate
               </div>
             ))}
           </div>
+
+          {/* Waveform */}
+          {waveformPeaks && waveformPeaks.length > 0 && (
+            <div className="h-[50px] bg-gray-850 border-b border-gray-700 sticky top-7 z-15">
+              <canvas
+                ref={waveformCanvasRef}
+                className="h-full"
+                style={{ width: timelineWidth + 100 }}
+              />
+            </div>
+          )}
 
           {/* Tracks */}
           <div className="relative pt-2 pb-20">

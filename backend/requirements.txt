@@ -2,6 +2,7 @@
 whisperx>=3.1.0
 moviepy>=1.0.3
 Pillow>=10.0.0
+librosa>=0.10.0
 
 # WhisperX dependencies (usually installed automatically)
 # torch>=2.0.0

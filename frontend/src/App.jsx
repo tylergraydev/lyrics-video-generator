@@ -11,6 +11,7 @@ import {
   generateVideo,
   getDownloadUrl,
   getAudioUrl,
+  getWaveform,
   deleteJob,
   importTimingFiles,
 } from './api';
@@ -45,6 +46,7 @@ function App() {
     textBox: null, // { x, y, width, height } normalized 0-1
   });
   const [videoUrl, setVideoUrl] = useState(null);
+  const [waveformPeaks, setWaveformPeaks] = useState(null);
   const [error, setError] = useState(null);
   const [processingStatus, setProcessingStatus] = useState('');
 
@@ -69,6 +71,10 @@ function App() {
       // Start alignment (synchronous - waits for completion)
       const alignResult = await alignLyrics(uploadResult.job_id);
       setTimingData(alignResult.timing);
+      // Extract waveform if available
+      if (alignResult.waveform) {
+        setWaveformPeaks(alignResult.waveform.peaks);
+      }
       setCurrentStep(STEPS.EDIT);
     } catch (err) {
       setError(err.message || 'Failed to process files');
@@ -92,6 +98,10 @@ function App() {
       const result = await importTimingFiles(audioFile, imageFile, timingFile);
       setJobId(result.job_id);
       setTimingData(result.timing);
+      // Fetch waveform in background for imported files
+      getWaveform(result.job_id)
+        .then((wf) => setWaveformPeaks(wf.peaks))
+        .catch((err) => console.log('Waveform not available:', err));
       setCurrentStep(STEPS.EDIT);
     } catch (err) {
       setError(err.message || 'Failed to import files');
@@ -138,6 +148,7 @@ function App() {
     setTimingData(null);
     setImageUrl(null);
     setVideoUrl(null);
+    setWaveformPeaks(null);
     setError(null);
   };
 
@@ -275,6 +286,7 @@ function App() {
                       onTimingChange={handleTimingUpdate}
                       onGenerate={handleGenerate}
                       audioUrl={jobId ? getAudioUrl(jobId) : null}
+                      waveformPeaks={waveformPeaks}
                     />
                   </div>
                 </>

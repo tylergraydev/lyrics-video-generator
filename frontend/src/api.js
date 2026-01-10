@@ -138,6 +138,21 @@ export function getAudioUrl(jobId) {
 }
 
 /**
+ * Get waveform data for a job
+ * @param {string} jobId - Job ID
+ * @returns {Promise<{peaks: number[], duration: number, sample_rate: number}>}
+ */
+export async function getWaveform(jobId) {
+  const response = await fetch(`${API_BASE}/waveform/${jobId}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to get waveform: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Delete a job and its files
  * @param {string} jobId - Job ID
  * @returns {Promise<{success: boolean}>}

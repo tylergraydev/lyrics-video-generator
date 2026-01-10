@@ -32,16 +32,20 @@ import numpy as np
 # Must be set before importing torch
 os.environ['TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD'] = '1'
 
-# Check for required packages and install if missing
+# Check for required packages and install if missing (skip if bundled with PyInstaller)
 def check_and_install_packages():
     """Install required packages if not present."""
+    # Skip in bundled PyInstaller environment
+    if getattr(sys, 'frozen', False):
+        return
+
     packages = [
         ('whisperx', 'whisperx'),
         ('moviepy', 'moviepy'),
         ('PIL', 'pillow'),
         ('torch', 'torch'),
     ]
-    
+
     for module, package in packages:
         try:
             __import__(module if module != 'PIL' else 'PIL')
@@ -909,6 +913,60 @@ class LyricsVideoGenerator:
         bg_clip.close()
         
         print(f"✓ Video saved to: {output_path}")
+
+
+def extract_waveform_peaks(audio_path: str, num_peaks: int = 2000) -> dict:
+    """
+    Extract waveform peaks for visualization.
+
+    Uses librosa to load audio and compute RMS energy, then downsamples
+    to the requested number of peaks for efficient frontend rendering.
+
+    Args:
+        audio_path: Path to audio file
+        num_peaks: Number of peaks to return (default 2000)
+
+    Returns:
+        dict with 'peaks' (list of floats 0-1), 'duration', 'sample_rate'
+    """
+    try:
+        import librosa
+    except ImportError:
+        print("Warning: librosa not installed, skipping waveform generation")
+        return None
+
+    print(f"Extracting waveform from: {audio_path}")
+
+    # Load audio with librosa (mono, resampled to 22050 Hz)
+    y, sr = librosa.load(audio_path, sr=22050, mono=True)
+    duration = len(y) / sr
+
+    # Calculate frame size to get approximately num_peaks frames
+    # Each frame will become one peak
+    hop_length = max(1, len(y) // num_peaks)
+
+    # Compute RMS energy for each frame
+    rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+
+    # Normalize to 0-1 range
+    if rms.max() > 0:
+        peaks = (rms / rms.max()).tolist()
+    else:
+        peaks = [0.0] * len(rms)
+
+    # Ensure we have exactly num_peaks (or close to it)
+    if len(peaks) > num_peaks:
+        # Downsample by taking every nth element
+        step = len(peaks) / num_peaks
+        peaks = [peaks[int(i * step)] for i in range(num_peaks)]
+
+    print(f"✓ Extracted {len(peaks)} waveform peaks")
+
+    return {
+        'peaks': peaks,
+        'duration': duration,
+        'sample_rate': sr
+    }
 
 
 def generate_lyrics_video(

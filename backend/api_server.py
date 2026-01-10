@@ -6,9 +6,13 @@ Flask backend that handles file uploads and video generation.
 """
 
 import os
+import sys
 import uuid
 import json
+import time
+import shutil
 import tempfile
+import threading
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
@@ -16,10 +20,11 @@ from werkzeug.utils import secure_filename
 
 # Import our core library
 from lyrics_video_app import (
-    LyricsAligner, 
-    LyricsVideoGenerator, 
+    LyricsAligner,
+    LyricsVideoGenerator,
     LyricsTimingData,
-    generate_lyrics_video
+    generate_lyrics_video,
+    extract_waveform_peaks
 )
 
 app = Flask(__name__, static_folder='web_ui/build', static_url_path='')
@@ -37,6 +42,48 @@ OUTPUT_FOLDER.mkdir(exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
+
+# Cleanup configuration
+CLEANUP_MAX_AGE_HOURS = 24  # Remove files older than this
+
+
+def cleanup_old_files(max_age_hours=CLEANUP_MAX_AGE_HOURS):
+    """
+    Remove job folders older than max_age_hours.
+    Called on startup and periodically by background thread.
+    """
+    max_age_seconds = max_age_hours * 3600
+    now = time.time()
+    cleaned = 0
+
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        if not folder.exists():
+            continue
+
+        for job_folder in folder.iterdir():
+            if job_folder.is_dir():
+                try:
+                    mtime = job_folder.stat().st_mtime
+                    if now - mtime > max_age_seconds:
+                        shutil.rmtree(job_folder)
+                        cleaned += 1
+                        print(f"[Cleanup] Removed old job: {job_folder.name}")
+                except Exception as e:
+                    print(f"[Cleanup] Error removing {job_folder}: {e}")
+
+    return cleaned
+
+
+def cleanup_thread():
+    """Background thread that cleans old files every hour."""
+    while True:
+        time.sleep(3600)  # 1 hour
+        try:
+            cleaned = cleanup_old_files()
+            if cleaned > 0:
+                print(f"[Cleanup] Background cleanup removed {cleaned} old job(s)")
+        except Exception as e:
+            print(f"[Cleanup] Background cleanup error: {e}")
 
 
 def allowed_file(filename, allowed_extensions):
@@ -163,20 +210,33 @@ def align_lyrics():
         # Perform alignment
         aligner = LyricsAligner(model_size=model_size)
         timing_data = aligner.align_lyrics(audio_path, lyrics_text, f"Job {job_id}")
-        
+
         # Save timing data
         timing_path = job_folder / 'timing.json'
         timing_data.to_json(str(timing_path))
-        
+
         # Return timing data
         with open(timing_path) as f:
             timing_json = json.load(f)
-        
+
+        # Extract waveform for visualization
+        waveform = None
+        try:
+            waveform = extract_waveform_peaks(audio_path)
+            if waveform:
+                # Save waveform for later retrieval
+                waveform_path = job_folder / 'waveform.json'
+                with open(waveform_path, 'w') as f:
+                    json.dump(waveform, f)
+        except Exception as wf_err:
+            print(f"Warning: Could not extract waveform: {wf_err}")
+
         return jsonify({
             'success': True,
-            'timing': timing_json
+            'timing': timing_json,
+            'waveform': waveform
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -408,11 +468,41 @@ def get_audio(job_id):
     )
 
 
+@app.route('/api/waveform/<job_id>')
+def get_waveform(job_id):
+    """
+    Get waveform peaks for timeline visualization.
+    Returns cached waveform if available, otherwise generates it.
+    """
+    job_folder = UPLOAD_FOLDER / job_id
+    waveform_path = job_folder / 'waveform.json'
+
+    # Return cached waveform if available
+    if waveform_path.exists():
+        with open(waveform_path) as f:
+            return jsonify(json.load(f))
+
+    # Generate waveform if not cached
+    audio_files = list(job_folder.glob('audio_*'))
+    if not audio_files:
+        return jsonify({'error': 'Audio file not found'}), 404
+
+    try:
+        waveform = extract_waveform_peaks(str(audio_files[0]))
+        if waveform:
+            # Cache for future requests
+            with open(waveform_path, 'w') as f:
+                json.dump(waveform, f)
+            return jsonify(waveform)
+        else:
+            return jsonify({'error': 'Could not extract waveform'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/jobs/<job_id>', methods=['DELETE'])
 def delete_job(job_id):
     """Clean up job files."""
-    import shutil
-    
     job_folder = UPLOAD_FOLDER / job_id
     output_folder = OUTPUT_FOLDER / job_id
     
@@ -436,12 +526,40 @@ def server_error(e):
 
 
 if __name__ == '__main__':
+    # Required for PyInstaller on macOS/Windows
+    import multiprocessing
+    multiprocessing.freeze_support()
+
+    # Check if running from Electron
+    is_electron = os.environ.get('ELECTRON_RUN') == '1'
+
     print("=" * 50)
     print("Lyrics Video Generator API")
+    if is_electron:
+        print("(Running as Electron backend)")
     print("=" * 50)
     print(f"Upload folder: {UPLOAD_FOLDER}")
     print(f"Output folder: {OUTPUT_FOLDER}")
+
+    # Run cleanup on startup
+    print("[Startup] Cleaning old job files...")
+    cleaned = cleanup_old_files()
+    if cleaned > 0:
+        print(f"[Startup] Removed {cleaned} old job(s)")
+    else:
+        print("[Startup] No old jobs to clean")
+
+    # Start background cleanup thread
+    cleanup = threading.Thread(target=cleanup_thread, daemon=True, name="CleanupThread")
+    cleanup.start()
+    print("[Startup] Background cleanup thread started (runs hourly)")
+
     print("Starting server at http://localhost:5001")
     print("=" * 50)
+    sys.stdout.flush()
 
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # When running from Electron, disable debug/reloader to avoid subprocess issues
+    if is_electron:
+        app.run(host='127.0.0.1', port=5001, debug=False, use_reloader=False)
+    else:
+        app.run(host='0.0.0.0', port=5001, debug=True)
