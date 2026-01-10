@@ -194,3 +194,131 @@ export async function importTimingFiles(audioFile, imageFile, timingFile) {
 
   return response.json();
 }
+
+// =============================================================================
+// Project Management Functions
+// =============================================================================
+
+/**
+ * List all saved projects
+ * @returns {Promise<{projects: Array}>}
+ */
+export async function listProjects() {
+  const response = await fetch(`${API_BASE}/projects`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list projects: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a new project from an active job
+ * @param {string} name - Project name
+ * @param {string} jobId - Job ID to save as project
+ * @param {object} settings - Optional styling settings
+ * @param {object} waveform - Optional waveform data
+ * @returns {Promise<{success: boolean, project: object}>}
+ */
+export async function createProject(name, jobId, settings = null, waveform = null) {
+  const response = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, job_id: jobId, settings, waveform }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to create project: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get full project data
+ * @param {string} projectId - Project ID
+ * @returns {Promise<object>} Project with timing, settings, waveform
+ */
+export async function getProject(projectId) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to get project: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Update project data
+ * @param {string} projectId - Project ID
+ * @param {object} data - Fields to update: { name?, timing?, settings?, status? }
+ * @returns {Promise<{success: boolean, project: object}>}
+ */
+export async function updateProject(projectId, data) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update project: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Delete a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<{success: boolean}>}
+ */
+export async function deleteProject(projectId) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete project: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Open a project for editing (loads into temp job)
+ * @param {string} projectId - Project ID
+ * @returns {Promise<{job_id: string, project_id: string, name: string, timing: object, settings: object, waveform: object}>}
+ */
+export async function openProject(projectId) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/open`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to open project: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get project audio URL
+ * @param {string} projectId - Project ID
+ * @returns {string} Audio URL
+ */
+export function getProjectAudioUrl(projectId) {
+  return `${API_BASE}/projects/${projectId}/audio`;
+}
+
+/**
+ * Get project image URL
+ * @param {string} projectId - Project ID
+ * @returns {string} Image URL
+ */
+export function getProjectImageUrl(projectId) {
+  return `${API_BASE}/projects/${projectId}/image`;
+}

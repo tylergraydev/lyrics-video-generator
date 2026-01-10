@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 const ALLOWED_AUDIO = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'aac'];
 const ALLOWED_IMAGE = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 
-export default function FileUpload({ onUploadComplete, onImportComplete }) {
+export default function FileUpload({ onUploadComplete, onImportComplete, onBackToProjects }) {
   const [mode, setMode] = useState('new'); // 'new' or 'import'
   const [audioFile, setAudioFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -72,6 +72,29 @@ export default function FileUpload({ onUploadComplete, onImportComplete }) {
 
   return (
     <div className="max-w-2xl mx-auto p-8">
+      {/* Back to Projects */}
+      {onBackToProjects && (
+        <button
+          onClick={onBackToProjects}
+          className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          Back to Projects
+        </button>
+      )}
+
       <div className="bg-gray-800 rounded-lg p-8">
         <h2 className="text-2xl font-bold mb-2 text-center">Upload Your Files</h2>
         <p className="text-gray-400 mb-4 text-center">

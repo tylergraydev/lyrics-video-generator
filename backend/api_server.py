@@ -18,6 +18,9 @@ from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
+# Import project manager
+from projects import ProjectManager
+
 # Import our core library
 from lyrics_video_app import (
     LyricsAligner,
@@ -38,6 +41,9 @@ ALLOWED_IMAGE = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 OUTPUT_FOLDER.mkdir(exist_ok=True)
+
+# Initialize project manager
+project_manager = ProjectManager()
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
@@ -505,13 +511,177 @@ def delete_job(job_id):
     """Clean up job files."""
     job_folder = UPLOAD_FOLDER / job_id
     output_folder = OUTPUT_FOLDER / job_id
-    
+
     if job_folder.exists():
         shutil.rmtree(job_folder)
     if output_folder.exists():
         shutil.rmtree(output_folder)
-    
+
     return jsonify({'success': True})
+
+
+# =============================================================================
+# Project Management Endpoints
+# =============================================================================
+
+@app.route('/api/projects', methods=['GET'])
+def list_projects():
+    """List all saved projects."""
+    projects = project_manager.list_projects()
+    return jsonify({'projects': projects})
+
+
+@app.route('/api/projects', methods=['POST'])
+def create_project():
+    """
+    Create a new project from an active job.
+
+    Request body:
+        {
+            "name": "My Song",
+            "job_id": "abc123",
+            "settings": { ... },  // optional styling settings
+            "waveform": { ... }   // optional waveform data
+        }
+    """
+    data = request.get_json()
+    name = data.get('name')
+    job_id = data.get('job_id')
+    settings = data.get('settings')
+    waveform = data.get('waveform')
+
+    if not name:
+        return jsonify({'error': 'Project name is required'}), 400
+    if not job_id:
+        return jsonify({'error': 'job_id is required'}), 400
+
+    job_folder = UPLOAD_FOLDER / job_id
+    if not job_folder.exists():
+        return jsonify({'error': 'Job not found'}), 404
+
+    # Load timing data if exists
+    timing_path = job_folder / 'timing.json'
+    timing = None
+    if timing_path.exists():
+        with open(timing_path, 'r') as f:
+            timing = json.load(f)
+
+    # Load waveform if not provided and exists on disk
+    if not waveform:
+        waveform_path = job_folder / 'waveform.json'
+        if waveform_path.exists():
+            with open(waveform_path, 'r') as f:
+                waveform = json.load(f)
+
+    try:
+        project = project_manager.create_project(
+            name=name,
+            job_dir=job_folder,
+            timing=timing,
+            settings=settings,
+            waveform=waveform,
+        )
+        return jsonify({'success': True, 'project': project})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/projects/<project_id>', methods=['GET'])
+def get_project(project_id):
+    """Get full project data including timing and settings."""
+    project = project_manager.get_project(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    return jsonify(project)
+
+
+@app.route('/api/projects/<project_id>', methods=['PUT'])
+def update_project(project_id):
+    """
+    Update project data.
+
+    Request body (all fields optional):
+        {
+            "name": "New Name",
+            "timing": { ... },
+            "settings": { ... },
+            "status": "completed"
+        }
+    """
+    data = request.get_json()
+
+    project = project_manager.update_project(
+        project_id=project_id,
+        name=data.get('name'),
+        timing=data.get('timing'),
+        settings=data.get('settings'),
+        status=data.get('status'),
+    )
+
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    return jsonify({'success': True, 'project': project})
+
+
+@app.route('/api/projects/<project_id>', methods=['DELETE'])
+def delete_project(project_id):
+    """Delete a project and all its files."""
+    success = project_manager.delete_project(project_id)
+    if not success:
+        return jsonify({'error': 'Project not found'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/projects/<project_id>/open', methods=['POST'])
+def open_project(project_id):
+    """
+    Load a project into a temp job for editing.
+
+    Creates a new job from the project files and returns
+    the job_id along with timing, settings, and waveform data.
+    """
+    # Create a new job for this editing session
+    job_id = generate_job_id()
+    job_folder = UPLOAD_FOLDER / job_id
+
+    result = project_manager.open_project(project_id, job_folder)
+    if not result:
+        return jsonify({'error': 'Project not found'}), 404
+
+    result['job_id'] = job_id
+    return jsonify(result)
+
+
+@app.route('/api/projects/<project_id>/audio', methods=['GET'])
+def get_project_audio(project_id):
+    """Stream audio file from project storage."""
+    audio_path = project_manager.get_project_file_path(project_id, 'audio')
+    if not audio_path:
+        return jsonify({'error': 'Audio file not found'}), 404
+
+    return send_file(audio_path, mimetype='audio/mpeg')
+
+
+@app.route('/api/projects/<project_id>/image', methods=['GET'])
+def get_project_image(project_id):
+    """Get background image from project storage."""
+    image_path = project_manager.get_project_file_path(project_id, 'image')
+    if not image_path:
+        return jsonify({'error': 'Image file not found'}), 404
+
+    # Determine mimetype from extension
+    ext = image_path.suffix.lower()
+    mimetypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+    }
+    mimetype = mimetypes.get(ext, 'image/jpeg')
+
+    return send_file(image_path, mimetype=mimetype)
 
 
 # Error handlers
