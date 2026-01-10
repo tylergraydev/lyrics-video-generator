@@ -13,13 +13,17 @@ const API_BASE = window.location.protocol === 'file:'
  * @param {File} audioFile - Audio file (mp3, wav, etc.)
  * @param {File} imageFile - Background image (jpg, png)
  * @param {string} lyrics - Lyrics text
+ * @param {File} alignmentAudioFile - Optional vocals-only audio for better transcription
  * @returns {Promise<{job_id: string, files: object}>}
  */
-export async function uploadFiles(audioFile, imageFile, lyrics) {
+export async function uploadFiles(audioFile, imageFile, lyrics, alignmentAudioFile = null) {
   const formData = new FormData();
   formData.append('audio', audioFile);
   formData.append('image', imageFile);
   formData.append('lyrics', lyrics);
+  if (alignmentAudioFile) {
+    formData.append('alignment_audio', alignmentAudioFile);
+  }
 
   const response = await fetch(`${API_BASE}/upload`, {
     method: 'POST',

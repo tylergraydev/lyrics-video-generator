@@ -67,7 +67,7 @@ function App() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleUploadComplete = async ({ audioFile, imageFile, lyrics }) => {
+  const handleUploadComplete = async ({ audioFile, alignmentAudioFile, imageFile, lyrics }) => {
     setError(null);
     setCurrentStep(STEPS.PROCESSING);
     setProcessingStatus('Uploading files...');
@@ -80,8 +80,8 @@ function App() {
     }
 
     try {
-      // Upload files
-      const uploadResult = await uploadFiles(audioFile, imageFile, lyrics);
+      // Upload files (with optional alignment audio for better transcription)
+      const uploadResult = await uploadFiles(audioFile, imageFile, lyrics, alignmentAudioFile);
       setJobId(uploadResult.job_id);
       setProcessingStatus('Analyzing audio and aligning lyrics... This may take 30-120 seconds.');
 

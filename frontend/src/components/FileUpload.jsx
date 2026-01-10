@@ -8,13 +8,16 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
   const { theme } = useTheme();
   const [mode, setMode] = useState('new');
   const [audioFile, setAudioFile] = useState(null);
+  const [alignmentAudioFile, setAlignmentAudioFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [lyrics, setLyrics] = useState('');
   const [timingFile, setTimingFile] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
+  const [showAlignmentAudio, setShowAlignmentAudio] = useState(false);
 
   const audioInputRef = useRef(null);
+  const alignmentAudioInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const timingInputRef = useRef(null);
 
@@ -28,6 +31,12 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
   const handleAudioSelect = (file) => {
     if (file && ALLOWED_AUDIO.includes(getExtension(file.name))) {
       setAudioFile(file);
+    }
+  };
+
+  const handleAlignmentAudioSelect = (file) => {
+    if (file && ALLOWED_AUDIO.includes(getExtension(file.name))) {
+      setAlignmentAudioFile(file);
     }
   };
 
@@ -51,6 +60,7 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
     setDragTarget(null);
     const file = e.dataTransfer.files[0];
     if (type === 'audio') handleAudioSelect(file);
+    else if (type === 'alignmentAudio') handleAlignmentAudioSelect(file);
     else if (type === 'image') handleImageSelect(file);
     else if (type === 'timing') handleTimingSelect(file);
   };
@@ -66,7 +76,7 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
 
   const handleSubmit = () => {
     if (mode === 'new' && isValidNew && onUploadComplete) {
-      onUploadComplete({ audioFile, imageFile, lyrics });
+      onUploadComplete({ audioFile, alignmentAudioFile, imageFile, lyrics });
     } else if (mode === 'import' && isValidImport && onImportComplete) {
       onImportComplete({ audioFile, imageFile, timingFile });
     }
@@ -181,6 +191,91 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
               )}
             </div>
           </div>
+
+          {/* Alignment Audio (Optional) - Only show in new mode */}
+          {mode === 'new' && (
+            <div>
+              <div className="flex items-center justify-between mb-3 ml-1">
+                <label className="text-white/70 text-sm font-medium">
+                  Alignment Audio <span className="text-white/40 font-normal">(Optional)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAlignmentAudio(!showAlignmentAudio);
+                    if (showAlignmentAudio) setAlignmentAudioFile(null);
+                  }}
+                  className="text-xs px-3 py-1 rounded-lg transition-colors"
+                  style={{
+                    background: showAlignmentAudio ? `${theme.accent1}20` : 'rgba(255,255,255,0.05)',
+                    color: showAlignmentAudio ? theme.accent1 : 'rgba(255,255,255,0.5)'
+                  }}
+                >
+                  {showAlignmentAudio ? 'Remove' : '+ Add vocals track'}
+                </button>
+              </div>
+
+              {showAlignmentAudio && (
+                <>
+                  <p className="text-white/40 text-xs mb-3 ml-1">
+                    Upload a vocals-only track for better transcription accuracy. The main audio will be used in the final video.
+                  </p>
+                  <input
+                    type="file"
+                    ref={alignmentAudioInputRef}
+                    onChange={(e) => handleAlignmentAudioSelect(e.target.files[0])}
+                    accept={ALLOWED_AUDIO.map(ext => `.${ext}`).join(',')}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => alignmentAudioInputRef.current?.click()}
+                    onDrop={(e) => handleDrop(e, 'alignmentAudio')}
+                    onDragOver={(e) => handleDragOver(e, 'alignmentAudio')}
+                    onDragLeave={handleDragLeave}
+                    className="group relative p-6 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer bg-white/[0.02]"
+                    style={{
+                      borderColor: dragTarget === 'alignmentAudio' || alignmentAudioFile ? theme.accent3 : 'rgba(255,255,255,0.1)',
+                      backgroundColor: dragTarget === 'alignmentAudio' || alignmentAudioFile ? `${theme.accent3}08` : undefined
+                    }}
+                  >
+                    {alignmentAudioFile ? (
+                      <div className="flex items-center justify-center gap-4">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(to bottom right, ${theme.glow3}, ${theme.bgAccent2})` }}>
+                          <svg className="w-6 h-6" style={{ color: theme.accent3 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white font-medium text-sm">{alignmentAudioFile.name}</p>
+                          <p className="text-white/40 text-xs">{(alignmentAudioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setAlignmentAudioFile(null); }}
+                          className="ml-4 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${theme.glow3}, ${theme.bgAccent2})` }}>
+                          <svg className="w-6 h-6" style={{ color: theme.accent3 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                        </div>
+                        <p className="text-white/60 text-sm mb-1">
+                          Drop vocals-only file here or <span style={{ color: theme.accent3 }}>browse</span>
+                        </p>
+                        <p className="text-white/30 text-xs">Isolated vocals for better word detection</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Background Image */}
           <div>
