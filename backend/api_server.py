@@ -244,6 +244,9 @@ def align_lyrics():
         })
 
     except Exception as e:
+        import traceback
+        print(f"[ERROR] Alignment failed: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
