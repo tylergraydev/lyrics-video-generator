@@ -1,10 +1,12 @@
 /**
  * API Client for Lyrics Video Generator Backend
- * 
- * TODO: Implement these functions to connect to Flask backend
  */
 
-const API_BASE = '/api';
+// When loaded from file:// (Electron production), use absolute URL
+// Otherwise use relative path (works with Vite proxy and Flask)
+const API_BASE = window.location.protocol === 'file:'
+  ? 'http://127.0.0.1:5001/api'
+  : '/api';
 
 /**
  * Upload files for processing
