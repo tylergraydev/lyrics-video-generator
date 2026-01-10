@@ -7,7 +7,7 @@ Build with: pyinstaller lyrics_video.spec
 import sys
 import os
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 # Determine the project root
 SPEC_DIR = Path(SPECPATH)
@@ -55,6 +55,9 @@ hidden_imports = [
     'librosa',
     'soundfile',
     'audioread',
+    'imageio',
+    'imageio_ffmpeg',
+    'proglog',
 ]
 
 # Collect submodules for complex packages
@@ -63,6 +66,9 @@ hidden_imports += collect_submodules('torchaudio')
 hidden_imports += collect_submodules('whisperx')
 hidden_imports += collect_submodules('moviepy')
 hidden_imports += collect_submodules('ctranslate2')
+hidden_imports += collect_submodules('librosa')
+hidden_imports += collect_submodules('imageio')
+hidden_imports += collect_submodules('imageio_ffmpeg')
 
 # Data files to include
 datas = [
@@ -79,6 +85,29 @@ datas += collect_data_files('torch')
 datas += collect_data_files('torchaudio')
 datas += collect_data_files('whisperx')
 datas += collect_data_files('ctranslate2')
+datas += collect_data_files('imageio')
+datas += collect_data_files('imageio_ffmpeg')
+
+# Package metadata (needed for packages that use importlib.metadata)
+# Be defensive - some packages may not have metadata on all platforms
+def safe_copy_metadata(package):
+    try:
+        return copy_metadata(package)
+    except Exception:
+        return []
+
+datas += safe_copy_metadata('imageio')
+datas += safe_copy_metadata('imageio_ffmpeg')
+datas += safe_copy_metadata('moviepy')
+datas += safe_copy_metadata('flask')
+datas += safe_copy_metadata('librosa')
+datas += safe_copy_metadata('numpy')
+datas += safe_copy_metadata('pillow')
+datas += safe_copy_metadata('decorator')
+datas += safe_copy_metadata('proglog')
+datas += safe_copy_metadata('tqdm')
+datas += safe_copy_metadata('scipy')
+datas += safe_copy_metadata('soundfile')
 
 # Analysis
 a = Analysis(
@@ -89,7 +118,7 @@ a = Analysis(
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(PROJECT_ROOT / 'runtime_hook.py')],
     excludes=[
         # Exclude unnecessary modules to reduce size
         'tkinter',
