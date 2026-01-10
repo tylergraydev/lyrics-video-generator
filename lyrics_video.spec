@@ -58,6 +58,14 @@ hidden_imports = [
     'imageio',
     'imageio_ffmpeg',
     'proglog',
+
+    # PyTorch Lightning (needed by pyannote)
+    'pytorch_lightning',
+    'lightning_fabric',
+    'lightning_fabric.utilities',
+    'pyannote',
+    'pyannote.audio',
+    'pyannote.core',
 ]
 
 # Collect submodules for complex packages
@@ -69,6 +77,9 @@ hidden_imports += collect_submodules('ctranslate2')
 hidden_imports += collect_submodules('librosa')
 hidden_imports += collect_submodules('imageio')
 hidden_imports += collect_submodules('imageio_ffmpeg')
+hidden_imports += collect_submodules('pytorch_lightning')
+hidden_imports += collect_submodules('lightning_fabric')
+hidden_imports += collect_submodules('pyannote')
 
 # Data files to include
 datas = [
@@ -87,6 +98,9 @@ datas += collect_data_files('whisperx')
 datas += collect_data_files('ctranslate2')
 datas += collect_data_files('imageio')
 datas += collect_data_files('imageio_ffmpeg')
+datas += collect_data_files('lightning_fabric')
+datas += collect_data_files('pytorch_lightning')
+datas += collect_data_files('pyannote')
 
 # Package metadata (needed for packages that use importlib.metadata)
 # Be defensive - some packages may not have metadata on all platforms
@@ -108,6 +122,11 @@ datas += safe_copy_metadata('proglog')
 datas += safe_copy_metadata('tqdm')
 datas += safe_copy_metadata('scipy')
 datas += safe_copy_metadata('soundfile')
+datas += safe_copy_metadata('lightning_fabric')
+datas += safe_copy_metadata('pytorch_lightning')
+datas += safe_copy_metadata('pyannote.audio')
+datas += safe_copy_metadata('pyannote.core')
+datas += safe_copy_metadata('pyannote.pipeline')
 
 # Analysis
 a = Analysis(
