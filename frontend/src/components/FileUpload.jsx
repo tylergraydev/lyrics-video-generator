@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
+import { useTheme } from '../ThemeContext';
 
 const ALLOWED_AUDIO = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'aac'];
 const ALLOWED_IMAGE = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 
 export default function FileUpload({ onUploadComplete, onImportComplete, onBackToProjects }) {
-  const [mode, setMode] = useState('new'); // 'new' or 'import'
+  const { theme } = useTheme();
+  const [mode, setMode] = useState('new');
   const [audioFile, setAudioFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -71,66 +73,61 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      {/* Back to Projects */}
+    <main className="flex-1 flex flex-col items-center px-8 py-8">
+      {/* Back button */}
       {onBackToProjects && (
-        <button
-          onClick={onBackToProjects}
-          className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="w-full max-w-2xl mb-6">
+          <button
+            onClick={onBackToProjects}
+            className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors group"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Back to Projects
-        </button>
+            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="text-sm">Back to Projects</span>
+          </button>
+        </div>
       )}
 
-      <div className="bg-gray-800 rounded-lg p-8">
-        <h2 className="text-2xl font-bold mb-2 text-center">Upload Your Files</h2>
-        <p className="text-gray-400 mb-4 text-center">
-          Upload an audio file, choose a background image, and paste your lyrics.
-        </p>
+      <div className="w-full max-w-2xl">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-light text-white mb-2" style={{ fontFamily: 'Georgia, serif' }}>
+            Upload Your Files
+          </h1>
+          <p className="text-white/40">Upload an audio file, choose a background image, and paste your lyrics.</p>
+        </div>
 
-        {/* Mode Toggle */}
-        <div className="flex justify-center gap-2 mb-8">
+        {/* Tab buttons */}
+        <div className="flex justify-center gap-2 mb-10">
           <button
             onClick={() => setMode('new')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
               mode === 'new'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'text-white shadow-lg'
+                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80'
             }`}
+            style={mode === 'new' ? { background: theme.primary, boxShadow: `0 10px 15px -3px ${theme.glow2}` } : {}}
           >
             New Project
           </button>
           <button
             onClick={() => setMode('import')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
               mode === 'import'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'text-white shadow-lg'
+                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80'
             }`}
+            style={mode === 'import' ? { background: theme.primary, boxShadow: `0 10px 15px -3px ${theme.glow2}` } : {}}
           >
             Import Timing JSON
           </button>
         </div>
 
+        {/* Upload sections */}
         <div className="space-y-6">
-          {/* Audio Upload */}
+          {/* Audio File */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Audio File
-            </label>
+            <label className="block text-white/70 text-sm font-medium mb-3 ml-1">Audio File</label>
             <input
               type="file"
               ref={audioInputRef}
@@ -143,45 +140,51 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
               onDrop={(e) => handleDrop(e, 'audio')}
               onDragOver={(e) => handleDragOver(e, 'audio')}
               onDragLeave={handleDragLeave}
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                ${dragTarget === 'audio' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}
-                ${audioFile ? 'bg-green-900/20 border-green-600' : ''}`}
+              className="group relative p-8 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer bg-white/[0.02]"
+              style={{
+                borderColor: dragTarget === 'audio' || audioFile ? theme.uploadHover1 : 'rgba(255,255,255,0.1)',
+                backgroundColor: dragTarget === 'audio' || audioFile ? `${theme.accent1}08` : undefined
+              }}
             >
               {audioFile ? (
-                <div className="flex items-center justify-center gap-3">
-                  <span className="text-2xl">🎵</span>
+                <div className="flex items-center justify-center gap-4">
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(to bottom right, ${theme.bgAccent}, ${theme.bgAccent2})` }}>
+                    <svg className="w-7 h-7" style={{ color: theme.uploadIcon1 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
                   <div className="text-left">
                     <p className="text-white font-medium">{audioFile.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                    <p className="text-white/40 text-sm">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setAudioFile(null); }}
-                    className="ml-4 text-gray-400 hover:text-red-400"
+                    className="ml-4 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
-                    ✕
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               ) : (
-                <div>
-                  <span className="text-3xl mb-2 block">🎵</span>
-                  <p className="text-gray-400">
-                    Drop audio file here or <span className="text-blue-400">browse</span>
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${theme.bgAccent}, ${theme.bgAccent2})` }}>
+                    <svg className="w-8 h-8" style={{ color: theme.uploadIcon1 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
+                  <p className="text-white/60 mb-1">
+                    Drop audio file here or <span style={{ color: theme.uploadIcon1 }}>browse</span>
                   </p>
-                  <p className="text-gray-500 text-xs mt-1">
-                    MP3, WAV, M4A, FLAC supported
-                  </p>
+                  <p className="text-white/30 text-sm">MP3, WAV, M4A, FLAC supported</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Image Upload */}
+          {/* Background Image */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Background Image
-            </label>
+            <label className="block text-white/70 text-sm font-medium mb-3 ml-1">Background Image</label>
             <input
               type="file"
               ref={imageInputRef}
@@ -194,79 +197,74 @@ export default function FileUpload({ onUploadComplete, onImportComplete, onBackT
               onDrop={(e) => handleDrop(e, 'image')}
               onDragOver={(e) => handleDragOver(e, 'image')}
               onDragLeave={handleDragLeave}
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                ${dragTarget === 'image' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}
-                ${imageFile ? 'bg-green-900/20 border-green-600' : ''}`}
+              className="group relative p-8 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer bg-white/[0.02]"
+              style={{
+                borderColor: dragTarget === 'image' || imageFile ? theme.uploadHover2 : 'rgba(255,255,255,0.1)',
+                backgroundColor: dragTarget === 'image' || imageFile ? `${theme.accent2}08` : undefined
+              }}
             >
               {imageFile ? (
                 <div className="flex items-center justify-center gap-4">
                   {imagePreview && (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="h-16 w-24 object-cover rounded"
-                    />
+                    <img src={imagePreview} alt="Preview" className="h-14 w-20 object-cover rounded-lg" />
                   )}
                   <div className="text-left">
                     <p className="text-white font-medium">{imageFile.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {(imageFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                    <p className="text-white/40 text-sm">{(imageFile.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImageFile(null);
-                      setImagePreview(null);
-                    }}
-                    className="ml-4 text-gray-400 hover:text-red-400"
+                    onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}
+                    className="ml-4 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
-                    ✕
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               ) : (
-                <div>
-                  <span className="text-3xl mb-2 block">🖼️</span>
-                  <p className="text-gray-400">
-                    Drop image here or <span className="text-blue-400">browse</span>
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${theme.bgAccent2}, ${theme.glow3})` }}>
+                    <svg className="w-8 h-8" style={{ color: theme.uploadIcon2 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-white/60 mb-1">
+                    Drop image here or <span style={{ color: theme.uploadIcon2 }}>browse</span>
                   </p>
-                  <p className="text-gray-500 text-xs mt-1">
-                    JPG, PNG, WebP supported
-                  </p>
+                  <p className="text-white/30 text-sm">JPG, PNG, WebP supported</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Lyrics Input (New mode) */}
+          {/* Lyrics (New mode) */}
           {mode === 'new' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Lyrics
-              </label>
-              <textarea
-                value={lyrics}
-                onChange={(e) => setLyrics(e.target.value)}
-                placeholder="Paste your lyrics here...
+              <label className="block text-white/70 text-sm font-medium mb-3 ml-1">Lyrics</label>
+              <div className="relative">
+                <textarea
+                  value={lyrics}
+                  onChange={(e) => setLyrics(e.target.value)}
+                  placeholder="Paste your lyrics here...
 
 Each line should be on its own line.
 Empty lines will create pauses."
-                className="w-full h-48 bg-gray-700 border border-gray-600 rounded-lg p-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
-              />
-              {lyrics.trim() && (
-                <p className="text-gray-500 text-xs mt-1">
-                  {lyrics.trim().split('\n').filter(l => l.trim()).length} lines
-                </p>
-              )}
+                  className="w-full h-48 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/10 text-white placeholder-white/30 resize-none focus:outline-none focus:bg-white/[0.05] transition-all duration-300"
+                  style={{ fontFamily: 'Georgia, serif', borderColor: lyrics ? theme.uploadHover2 : undefined }}
+                />
+                {lyrics.trim() && (
+                  <div className="absolute bottom-4 right-4 text-white/20 text-sm">
+                    {lyrics.split('\n').filter(l => l.trim()).length} lines
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Timing JSON Upload (Import mode) */}
+          {/* Timing JSON (Import mode) */}
           {mode === 'import' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Timing JSON File
-              </label>
+              <label className="block text-white/70 text-sm font-medium mb-3 ml-1">Timing JSON File</label>
               <input
                 type="file"
                 ref={timingInputRef}
@@ -279,56 +277,70 @@ Empty lines will create pauses."
                 onDrop={(e) => handleDrop(e, 'timing')}
                 onDragOver={(e) => handleDragOver(e, 'timing')}
                 onDragLeave={handleDragLeave}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                  ${dragTarget === 'timing' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}
-                  ${timingFile ? 'bg-green-900/20 border-green-600' : ''}`}
+                className="group relative p-8 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer bg-white/[0.02]"
+                style={{
+                  borderColor: dragTarget === 'timing' || timingFile ? theme.accent3 : 'rgba(255,255,255,0.1)',
+                  backgroundColor: dragTarget === 'timing' || timingFile ? `${theme.accent3}08` : undefined
+                }}
               >
                 {timingFile ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-2xl">📄</span>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(to bottom right, ${theme.glow3}, ${theme.bgAccent2})` }}>
+                      <svg className="w-7 h-7" style={{ color: theme.accent3 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
                     <div className="text-left">
                       <p className="text-white font-medium">{timingFile.name}</p>
-                      <p className="text-gray-400 text-sm">
-                        {(timingFile.size / 1024).toFixed(2)} KB
-                      </p>
+                      <p className="text-white/40 text-sm">{(timingFile.size / 1024).toFixed(2)} KB</p>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); setTimingFile(null); }}
-                      className="ml-4 text-gray-400 hover:text-red-400"
+                      className="ml-4 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                     >
-                      ✕
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
                   </div>
                 ) : (
-                  <div>
-                    <span className="text-3xl mb-2 block">📄</span>
-                    <p className="text-gray-400">
-                      Drop timing JSON here or <span className="text-blue-400">browse</span>
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${theme.glow3}, ${theme.bgAccent2})` }}>
+                      <svg className="w-8 h-8" style={{ color: theme.accent3 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-white/60 mb-1">
+                      Drop timing JSON here or <span style={{ color: theme.accent3 }}>browse</span>
                     </p>
-                    <p className="text-gray-500 text-xs mt-1">
-                      Previously exported timing JSON file
-                    </p>
+                    <p className="text-white/30 text-sm">Previously exported timing JSON file</p>
                   </div>
                 )}
               </div>
             </div>
           )}
+        </div>
 
-          {/* Submit Button */}
+        {/* Continue button */}
+        <div className="mt-10 flex justify-end">
           <button
             onClick={handleSubmit}
             disabled={mode === 'new' ? !isValidNew : !isValidImport}
-            className={`w-full py-3 rounded-lg font-medium transition-colors
-              ${(mode === 'new' ? isValidNew : isValidImport)
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
+            className="group relative px-8 py-4 rounded-2xl font-medium text-white overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-2xl disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+            style={{ background: theme.primary, boxShadow: `0 25px 50px -12px ${theme.glow2}` }}
           >
-            {mode === 'new'
-              ? (isValidNew ? 'Start Processing →' : 'Add all files to continue')
-              : (isValidImport ? 'Import & Edit →' : 'Add all files to continue')}
+            <span className="relative z-10 flex items-center gap-2">
+              {mode === 'new'
+                ? (isValidNew ? 'Start Processing' : 'Add all files to continue')
+                : (isValidImport ? 'Import & Edit' : 'Add all files to continue')}
+              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
