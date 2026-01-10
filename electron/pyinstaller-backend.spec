@@ -59,11 +59,25 @@ datas += collect_data_files('imageio')
 datas += collect_data_files('imageio_ffmpeg')
 
 # Package metadata (needed for packages that use importlib.metadata)
-datas += copy_metadata('imageio')
-datas += copy_metadata('imageio_ffmpeg')
-datas += copy_metadata('moviepy')
-datas += copy_metadata('flask')
-datas += copy_metadata('librosa')
+# Be defensive - some packages may not have metadata on all platforms
+def safe_copy_metadata(package):
+    try:
+        return copy_metadata(package)
+    except Exception:
+        return []
+
+datas += safe_copy_metadata('imageio')
+datas += safe_copy_metadata('imageio_ffmpeg')
+datas += safe_copy_metadata('moviepy')
+datas += safe_copy_metadata('flask')
+datas += safe_copy_metadata('librosa')
+datas += safe_copy_metadata('numpy')
+datas += safe_copy_metadata('pillow')
+datas += safe_copy_metadata('decorator')
+datas += safe_copy_metadata('proglog')
+datas += safe_copy_metadata('tqdm')
+datas += safe_copy_metadata('scipy')
+datas += safe_copy_metadata('soundfile')
 
 a = Analysis(
     [str(BACKEND_DIR / 'api_server.py')],
@@ -73,7 +87,7 @@ a = Analysis(
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(SPEC_DIR / 'runtime_hook.py')],
     excludes=[
         'tkinter',
         'matplotlib',
