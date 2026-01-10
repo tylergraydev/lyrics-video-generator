@@ -5,7 +5,12 @@ Lyrics Video Generator - Desktop Application
 Launches the app as a native desktop window using PyWebView.
 """
 
+# CRITICAL: Must be first before ANY other imports for PyInstaller on macOS
 import sys
+import multiprocessing
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
 import os
 import threading
 import socket
@@ -69,10 +74,26 @@ def get_static_folder():
     """Get the path to the frontend static files."""
     if getattr(sys, 'frozen', False):
         # Running as compiled executable
-        return str(BASE_DIR / 'frontend' / 'dist')
+        static_path = BASE_DIR / 'frontend' / 'dist'
     else:
         # Running as script - use the frontend dist folder
-        return str(BASE_DIR / 'frontend' / 'dist')
+        static_path = BASE_DIR / 'frontend' / 'dist'
+
+    # Debug: Print static folder info
+    print(f"[DEBUG] Static folder: {static_path}")
+    print(f"[DEBUG] Static folder exists: {static_path.exists()}")
+    if static_path.exists():
+        try:
+            files = list(static_path.iterdir())
+            print(f"[DEBUG] Static folder contents: {[f.name for f in files]}")
+            assets_path = static_path / 'assets'
+            if assets_path.exists():
+                asset_files = list(assets_path.iterdir())
+                print(f"[DEBUG] Assets folder contents: {[f.name for f in asset_files]}")
+        except Exception as e:
+            print(f"[DEBUG] Error listing files: {e}")
+
+    return str(static_path)
 
 
 def create_app():
