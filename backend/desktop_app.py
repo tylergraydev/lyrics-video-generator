@@ -15,7 +15,59 @@ import os
 import threading
 import socket
 import time
+import logging
+from datetime import datetime
 from pathlib import Path
+
+
+def setup_logging():
+    """Set up logging to both console and file."""
+    # Create logs directory in user's home folder
+    if sys.platform == 'win32':
+        log_dir = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'LyricsVideoGenerator' / 'logs'
+    else:
+        log_dir = Path.home() / '.lyrics_video_generator' / 'logs'
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create log file with timestamp
+    log_file = log_dir / f'app_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+
+    # Also keep a 'latest.log' symlink/copy for easy access
+    latest_log = log_dir / 'latest.log'
+
+    # Set up logging format
+    log_format = '%(asctime)s [%(levelname)s] %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format=log_format,
+        datefmt=date_format,
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+    # Also write to latest.log
+    try:
+        latest_handler = logging.FileHandler(latest_log, mode='w', encoding='utf-8')
+        latest_handler.setFormatter(logging.Formatter(log_format, date_format))
+        logging.getLogger().addHandler(latest_handler)
+    except Exception:
+        pass  # Ignore if we can't create latest.log
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Latest log: {latest_log}")
+
+    return logger, log_file
+
+
+# Set up logging immediately
+logger, LOG_FILE = setup_logging()
 
 # Ensure we can import from the backend directory
 if getattr(sys, 'frozen', False):
@@ -79,19 +131,19 @@ def get_static_folder():
         # Running as script - use the frontend dist folder
         static_path = BASE_DIR / 'frontend' / 'dist'
 
-    # Debug: Print static folder info
-    print(f"[DEBUG] Static folder: {static_path}")
-    print(f"[DEBUG] Static folder exists: {static_path.exists()}")
+    # Debug: Log static folder info
+    logger.debug(f"Static folder: {static_path}")
+    logger.debug(f"Static folder exists: {static_path.exists()}")
     if static_path.exists():
         try:
             files = list(static_path.iterdir())
-            print(f"[DEBUG] Static folder contents: {[f.name for f in files]}")
+            logger.debug(f"Static folder contents: {[f.name for f in files]}")
             assets_path = static_path / 'assets'
             if assets_path.exists():
                 asset_files = list(assets_path.iterdir())
-                print(f"[DEBUG] Assets folder contents: {[f.name for f in asset_files]}")
+                logger.debug(f"Assets folder contents: {[f.name for f in asset_files]}")
         except Exception as e:
-            print(f"[DEBUG] Error listing files: {e}")
+            logger.error(f"Error listing files: {e}")
 
     return str(static_path)
 
@@ -128,11 +180,17 @@ def create_app():
 
 def main():
     """Main entry point for the desktop application."""
-    print("Starting Lyrics Video Generator...")
+    logger.info("Starting Lyrics Video Generator...")
+    logger.info(f"Python version: {sys.version}")
+    logger.info(f"Platform: {sys.platform}")
+    logger.info(f"Frozen: {getattr(sys, 'frozen', False)}")
+    if getattr(sys, 'frozen', False):
+        logger.info(f"Executable: {sys.executable}")
+        logger.info(f"MEIPASS: {sys._MEIPASS}")
 
     # Find an available port
     port = find_free_port()
-    print(f"Using port {port}")
+    logger.info(f"Using port {port}")
 
     # Create the Flask app
     app = create_app()
@@ -143,10 +201,10 @@ def main():
 
     # Wait for server to be ready
     if not wait_for_server(port):
-        print("Error: Server failed to start")
+        logger.error("Server failed to start")
         sys.exit(1)
 
-    print(f"Server started at http://127.0.0.1:{port}")
+    logger.info(f"Server started at http://127.0.0.1:{port}")
 
     # Create the webview window
     window = webview.create_window(
@@ -161,7 +219,7 @@ def main():
 
     def on_closing():
         """Cleanup when window is closed."""
-        print("Shutting down server...")
+        logger.info("Shutting down server...")
         server.shutdown()
 
     window.events.closing += on_closing
@@ -169,8 +227,16 @@ def main():
     # Start the webview (blocks until window is closed)
     webview.start(debug=False)
 
-    print("Application closed")
+    logger.info("Application closed")
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+        # On Windows, keep the console open so user can see the error
+        if sys.platform == 'win32':
+            print(f"\n\nFatal error occurred. See log file for details:\n{LOG_FILE}\n")
+            input("Press Enter to exit...")
+        raise
