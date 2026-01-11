@@ -13,10 +13,38 @@ import time
 import shutil
 import tempfile
 import threading
+import logging
+from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+
+# Set up logging to file (works even when console=False on Windows)
+def setup_api_logging():
+    """Set up file logging for the API server."""
+    if sys.platform == 'win32':
+        log_dir = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'LyricsVideoGenerator' / 'logs'
+    else:
+        log_dir = Path.home() / '.lyrics_video_generator' / 'logs'
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / 'api_server.log'
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    return logging.getLogger(__name__), log_file
+
+logger, API_LOG_FILE = setup_api_logging()
+logger.info(f"API server starting - log file: {API_LOG_FILE}")
 
 # Import project manager
 from projects import ProjectManager
@@ -211,11 +239,21 @@ def align_lyrics():
         return jsonify({'error': 'No lyrics file found'}), 400
 
     lyrics_text = lyrics_file.read_text()
-    
+
     try:
         # Perform alignment
+        logger.info(f"Starting alignment for job {job_id}")
+        logger.info(f"Audio path: {audio_path}")
+        logger.info(f"Model size: {model_size}")
+        logger.info(f"Lyrics length: {len(lyrics_text)} chars")
+
+        logger.info("Creating LyricsAligner...")
         aligner = LyricsAligner(model_size=model_size)
+        logger.info("LyricsAligner created successfully")
+
+        logger.info("Starting align_lyrics...")
         timing_data = aligner.align_lyrics(audio_path, lyrics_text, f"Job {job_id}")
+        logger.info("Alignment completed successfully")
 
         # Save timing data
         timing_path = job_folder / 'timing.json'
@@ -235,7 +273,7 @@ def align_lyrics():
                 with open(waveform_path, 'w') as f:
                     json.dump(waveform, f)
         except Exception as wf_err:
-            print(f"Warning: Could not extract waveform: {wf_err}")
+            logger.warning(f"Could not extract waveform: {wf_err}")
 
         return jsonify({
             'success': True,
@@ -245,9 +283,10 @@ def align_lyrics():
 
     except Exception as e:
         import traceback
-        print(f"[ERROR] Alignment failed: {e}")
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        error_details = traceback.format_exc()
+        logger.error(f"Alignment failed: {e}")
+        logger.error(f"Full traceback:\n{error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
 
 
 @app.route('/api/timing/<job_id>', methods=['GET', 'PUT'])
@@ -331,17 +370,31 @@ def import_timing():
     return jsonify(result)
 
 
-# Font name to system font path mapping
-FONT_MAP = {
-    'Arial': '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
-    'Impact': '/System/Library/Fonts/Supplemental/Impact.ttf',
-    'Georgia': '/System/Library/Fonts/Supplemental/Georgia Bold.ttf',
-    'Verdana': '/System/Library/Fonts/Supplemental/Verdana Bold.ttf',
-    'Times New Roman': '/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf',
-    'Courier New': '/System/Library/Fonts/Courier New Bold.ttf',
-    'Trebuchet MS': '/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf',
-    'Comic Sans MS': '/System/Library/Fonts/Supplemental/Comic Sans MS Bold.ttf',
-}
+# Font name to system font path mapping (platform-specific)
+if sys.platform == 'win32':
+    # Windows font paths (C:\Windows\Fonts)
+    FONT_MAP = {
+        'Arial': 'C:/Windows/Fonts/arialbd.ttf',
+        'Impact': 'C:/Windows/Fonts/impact.ttf',
+        'Georgia': 'C:/Windows/Fonts/georgiab.ttf',
+        'Verdana': 'C:/Windows/Fonts/verdanab.ttf',
+        'Times New Roman': 'C:/Windows/Fonts/timesbd.ttf',
+        'Courier New': 'C:/Windows/Fonts/courbd.ttf',
+        'Trebuchet MS': 'C:/Windows/Fonts/trebucbd.ttf',
+        'Comic Sans MS': 'C:/Windows/Fonts/comicbd.ttf',
+    }
+else:
+    # macOS font paths
+    FONT_MAP = {
+        'Arial': '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+        'Impact': '/System/Library/Fonts/Supplemental/Impact.ttf',
+        'Georgia': '/System/Library/Fonts/Supplemental/Georgia Bold.ttf',
+        'Verdana': '/System/Library/Fonts/Supplemental/Verdana Bold.ttf',
+        'Times New Roman': '/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf',
+        'Courier New': '/System/Library/Fonts/Courier New Bold.ttf',
+        'Trebuchet MS': '/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf',
+        'Comic Sans MS': '/System/Library/Fonts/Supplemental/Comic Sans MS Bold.ttf',
+    }
 
 
 @app.route('/api/generate', methods=['POST'])
